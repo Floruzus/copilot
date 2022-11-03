@@ -1,10 +1,11 @@
-const {REST, Routes, Collection, SlashCommandBuilder, EmbedBuilder} = require('discord.js')
+const {REST, Routes, Collection, SlashCommandBuilder, EmbedBuilder, ChannelType} = require('discord.js')
 const axios = require('axios')
 const fs = require("fs")
 
 const COMMANDS_NAME = {
     METAR: "metar",
-    SET_CHANNEL: "setchannel"
+    SET_CHANNEL_PUBLISHER: "setpublisher",
+    SET_CHANNEL_METAR: "setmetar"
 }
 
 const config = require('./config.json')
@@ -24,12 +25,23 @@ const commands = [
                 .setMinLength(4)
         ).toJSON(),
     (new SlashCommandBuilder())
-        .setName(COMMANDS_NAME.SET_CHANNEL)
+        .setName(COMMANDS_NAME.SET_CHANNEL_PUBLISHER)
         .setDefaultMemberPermissions(0)
         .setDescription('Set the channel to publish new airac cycle in')
         .addChannelOption(option =>
             option.setName('channel')
                 .setDescription('Channel to publish new airac cycle in')
+                .addChannelTypes(ChannelType.GuildText)
+                .setRequired(true)
+        ).toJSON(),
+    (new SlashCommandBuilder())
+        .setName(COMMANDS_NAME.SET_CHANNEL_METAR)
+        .setDefaultMemberPermissions(0)
+        .setDescription('Set the channel to use metar command')
+        .addChannelOption(option =>
+            option.setName('channel')
+                .setDescription('Channel to use metar command')
+                .addChannelTypes(ChannelType.GuildText)
                 .setRequired(true)
         ).toJSON()
 ]
@@ -78,7 +90,7 @@ function checkAiracCycle(channel = null) {
                         channel.send({embeds: [embed]})
                     } else {
                         guilds.each(async g => {
-                            const c = channels.get(g.id)
+                            const c = channels.get(g.id).publisher
                             try {
                                 const guild = await client.guilds.fetch(g.id)
                                 await (guild.channels.fetch(c)).send({embeds: [embed]})
@@ -110,27 +122,35 @@ client.on('interactionCreate', async interaction => {
     if (!interaction.isChatInputCommand()) return
 
     if (interaction.commandName === COMMANDS_NAME.METAR) {
+
+        if (interaction.channelId !== channels.get(interaction.guildId).metar) {
+            interaction.reply({content: "You cannot use this command here.", ephemeral: true})
+            return
+        }
+
         const icao = interaction.options.get('icao').value.toUpperCase()
         axios.get(`https://tgftp.nws.noaa.gov/data/observations/metar/stations/${icao}.TXT`)
             .then(async res => {
-                await interaction.reply(res.data.split('\n')[1])
+                interaction.reply(res.data.split('\n')[1])
             })
             .catch(async err => {
                 if (err.response.status === 404) {
-                    await interaction.reply(`Cannot find airport with ${icao} ICAO/OACI.`)
+                    interaction.reply(`Cannot find airport with ${icao} ICAO/OACI.`)
                 } else {
-                    await interaction.reply(`API did not respond, please try again later.`)
+                    interaction.reply(`API did not respond, please try again later.`)
                 }
             })
     }
 
-    if (interaction.commandName === COMMANDS_NAME.SET_CHANNEL) {
+    if (interaction.commandName === COMMANDS_NAME.SET_CHANNEL_PUBLISHER) {
         const input = interaction.options.get('channel')
         const guildChannel = channels.get(input.channel.guild.id)
 
         if (guildChannel !== input.channel.id) {
-            channels.set(input.channel.guild.id, input.channel.id)
-            jsonGuilds[input.channel.guild.id] = input.channel.id
+            const guild = channels.get(input.channel.guild.id)
+            channels.set(input.channel.guild.id, {...guild, ...{publisher: input.channel.id}})
+            jsonGuilds[input.channel.guild.id] = {...jsonGuilds[input.channel.guild.id], ...{publisher: input.channel.id}}
+
             fs.writeFile('guilds.json', JSON.stringify(jsonGuilds), () => {
                 checkAiracCycle(input.channel)
                 interaction.reply({
@@ -140,6 +160,26 @@ client.on('interactionCreate', async interaction => {
             })
         } else {
             interaction.reply({content: `The channel ${input.channel.name} is already set as the publish channel.`, ephemeral: true})
+        }
+    }
+
+    if (interaction.commandName === COMMANDS_NAME.SET_CHANNEL_METAR) {
+        const input = interaction.options.get('channel')
+        const guildChannel = channels.get(input.channel.guild.id)
+
+        if (guildChannel !== input.channel.id) {
+            const guild = channels.get(input.channel.guild.id)
+            channels.set(input.channel.guild.id, {...guild, ...{metar: input.channel.id}})
+            jsonGuilds[input.channel.guild.id] = {...jsonGuilds[input.channel.guild.id], ...{metar: input.channel.id}}
+
+            fs.writeFile('guilds.json', JSON.stringify(jsonGuilds), () => {
+                interaction.reply({
+                    content: `The channel ${input.channel.name} was set to metar command channel.`,
+                    ephemeral: true
+                })
+            })
+        } else {
+            interaction.reply({content: `The channel ${input.channel.name} is already set as metar channel.`, ephemeral: true})
         }
     }
 });
