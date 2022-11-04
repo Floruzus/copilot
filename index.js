@@ -144,7 +144,7 @@ client.on('interactionCreate', async interaction => {
 
     if (interaction.commandName === COMMANDS_NAME.SET_CHANNEL_PUBLISHER) {
         const input = interaction.options.get('channel')
-        const guildChannel = channels.get(input.channel.guild.id)
+        const guildChannel = channels.get(input.channel.guild.id).publisher
 
         if (guildChannel !== input.channel.id) {
             const guild = channels.get(input.channel.guild.id)
@@ -165,7 +165,7 @@ client.on('interactionCreate', async interaction => {
 
     if (interaction.commandName === COMMANDS_NAME.SET_CHANNEL_METAR) {
         const input = interaction.options.get('channel')
-        const guildChannel = channels.get(input.channel.guild.id)
+        const guildChannel = channels.get(input.channel.guild.id).metar
 
         if (guildChannel !== input.channel.id) {
             const guild = channels.get(input.channel.guild.id)
