@@ -4,6 +4,7 @@ const fs = require("fs")
 
 const COMMANDS_NAME = {
     METAR: "metar",
+    TAF: "taf",
     SET_CHANNEL_PUBLISHER: "setpublisher",
     SET_CHANNEL_METAR: "setmetar"
 }
@@ -17,6 +18,16 @@ const commands = [
     (new SlashCommandBuilder())
         .setName(COMMANDS_NAME.METAR)
         .setDescription('Retrieve a metar for a given airport ICAO/OACI')
+        .addStringOption(option =>
+            option.setName('icao')
+                .setDescription('Airport ICAO/OACI code')
+                .setRequired(true)
+                .setMaxLength(4)
+                .setMinLength(4)
+        ).toJSON(),
+    (new SlashCommandBuilder())
+        .setName(COMMANDS_NAME.TAF)
+        .setDescription('Retrieve a taf for a given airport ICAO/OACI')
         .addStringOption(option =>
             option.setName('icao')
                 .setDescription('Airport ICAO/OACI code')
@@ -124,20 +135,48 @@ client.on('interactionCreate', async interaction => {
     if (interaction.commandName === COMMANDS_NAME.METAR) {
 
         if (interaction.channelId !== channels.get(interaction.guildId).metar) {
-            interaction.reply({content: "You cannot use this command here.", ephemeral: true})
+            await interaction.reply({content: "You cannot use this command here.", ephemeral: true})
             return
         }
 
         const icao = interaction.options.get('icao').value.toUpperCase()
-        axios.get(`https://tgftp.nws.noaa.gov/data/observations/metar/stations/${icao}.TXT`)
+        axios.get(`https://fr.allmetsat.com/metar-taf/europe.php?icao=${icao}`)
             .then(async res => {
-                interaction.reply(res.data.split('\n')[1])
+                let m
+                if ((m = /<b>METAR:<\/b> (.*)/.exec(res.data)) !== null) {
+                    await interaction.reply(m[1].trim())
+                }
             })
             .catch(async err => {
                 if (err.response.status === 404) {
-                    interaction.reply(`Cannot find airport with ${icao} ICAO/OACI.`)
+                    await interaction.reply(`Cannot find airport with ${icao} ICAO/OACI.`)
                 } else {
-                    interaction.reply(`API did not respond, please try again later.`)
+                    await interaction.reply(`API did not respond, please try again later.`)
+                }
+            })
+    }
+
+    if (interaction.commandName === COMMANDS_NAME.TAF) {
+
+        if (interaction.channelId !== channels.get(interaction.guildId).metar) {
+            await interaction.reply({content: "You cannot use this command here.", ephemeral: true})
+            return
+        }
+
+        const icao = interaction.options.get('icao').value.toUpperCase()
+        axios.get(`https://fr.allmetsat.com/metar-taf/europe.php?icao=${icao}`)
+            .then(async res => {
+                let m
+                if ((m = /<b>TAF:<\/b> (.*)/.exec(res.data)) !== null) {
+                    await interaction.reply(m[1].replace(/([0-9]{4}\/[0-9]{4})/g, '\n $1').trim())
+                }
+            })
+            .catch(async err => {
+                console.log(err)
+                if (err.response.status === 404) {
+                    await interaction.reply(`Cannot find airport with ${icao} ICAO/OACI.`)
+                } else {
+                    await interaction.reply(`API did not respond, please try again later.`)
                 }
             })
     }
@@ -151,15 +190,15 @@ client.on('interactionCreate', async interaction => {
             channels.set(input.channel.guild.id, {...guild, ...{publisher: input.channel.id}})
             jsonGuilds[input.channel.guild.id] = {...jsonGuilds[input.channel.guild.id], ...{publisher: input.channel.id}}
 
-            fs.writeFile('guilds.json', JSON.stringify(jsonGuilds), () => {
+            fs.writeFile('guilds.json', JSON.stringify(jsonGuilds), async () => {
                 checkAiracCycle(input.channel)
-                interaction.reply({
+                await interaction.reply({
                     content: `The channel ${input.channel.name} was set as your publish channel.`,
                     ephemeral: true
                 })
             })
         } else {
-            interaction.reply({content: `The channel ${input.channel.name} is already set as the publish channel.`, ephemeral: true})
+            await interaction.reply({content: `The channel ${input.channel.name} is already set as the publish channel.`, ephemeral: true})
         }
     }
 
@@ -172,14 +211,14 @@ client.on('interactionCreate', async interaction => {
             channels.set(input.channel.guild.id, {...guild, ...{metar: input.channel.id}})
             jsonGuilds[input.channel.guild.id] = {...jsonGuilds[input.channel.guild.id], ...{metar: input.channel.id}}
 
-            fs.writeFile('guilds.json', JSON.stringify(jsonGuilds), () => {
-                interaction.reply({
+            fs.writeFile('guilds.json', JSON.stringify(jsonGuilds), async () => {
+                await interaction.reply({
                     content: `The channel ${input.channel.name} was set to metar command channel.`,
                     ephemeral: true
                 })
             })
         } else {
-            interaction.reply({content: `The channel ${input.channel.name} is already set as metar channel.`, ephemeral: true})
+            await interaction.reply({content: `The channel ${input.channel.name} is already set as metar channel.`, ephemeral: true})
         }
     }
 });
