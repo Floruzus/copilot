@@ -104,7 +104,9 @@ function checkAiracCycle(channel = null) {
                             const c = channels.get(g.id).publisher
                             try {
                                 const guild = await client.guilds.fetch(g.id)
-                                await (guild.channels.fetch(c)).send({embeds: [embed]})
+                                guild.channels.fetch(c).then(c => {
+                                    c.send({embeds: [embed]})
+                                })
                             } catch (e) {
                                 console.error(e.message)
                             }
