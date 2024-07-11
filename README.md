@@ -27,6 +27,7 @@
 ```
 
 |Conf|Description|
+|---|---|
 |NAVIGRAPH_URL|URL to fetch new releases of airacs|
 |NAVIGRAPH_LOGO|Logo for the icon of the embed message|
 |INTERVAL|Interval in seconds to fetch new airacs releases|
