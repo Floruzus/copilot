@@ -74,12 +74,13 @@ function checkAiracCycle(channel = null) {
     .then(res => {
       let m;
       if ((m = reg.exec(res.data)) !== null) {
-        if (m[3] !== lastversion || channel) {
-          fs.writeFile("lastversion.txt", m[3], () => {
+        const id = `${m[1]} ${m[2]}`
+        if (id !== lastversion || channel) {
+          fs.writeFile("lastversion.txt", id, () => {
             lastversion = m[3]
           })
 
-          const title = `New airac cycle ${m[1]} ${m[2]} is out !`
+          const title = `New airac cycle ${id} is out !`
           const embed = (new EmbedBuilder())
             .setTitle(title)
             .setDescription("Don't forget to update your airac cycle with Navdata center (or FMS Data Manager)")
